@@ -146,6 +146,28 @@ class NeuralNetwork:
         dL_db1 = np.sum(dL_dZ1, axis=0, keepdims=True) / self.X_train.shape[0]
 
         return dL_dW3, dL_db3, dL_dW2, dL_db2, dL_dW1, dL_db1
+
+    def train(self):
+        for e in range(self.epochs):
+            y_hat = self.forward_pass()
+
+            error = cross_entropy(self.y_train, y_hat, 33600)
+
+            gradients = self.backprop(y_hat, self.y_train)
+
+            self.update_params(gradients, self.learning_rate)
+
+            pred_classes = np.argmax(y_hat, axis=1)
+            true_classes = np.argmax(self.y_train, axis=1)
+            accuracy = np.mean(pred_classes == true_classes)
+            print(f"Epoch {e + 1}/{self.epochs} - "
+                  f"Loss: {error:.4f} - "
+                  f"Train Acc: {accuracy:.4f} - "
+                  )
+
+if __name__ == '__main__':
+    nn = NeuralNetwork(0.1, 1000)
+    nn.train()
 # print("Shape fo x after separating features:", X.shape)
 
 
