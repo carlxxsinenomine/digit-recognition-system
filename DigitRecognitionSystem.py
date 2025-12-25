@@ -3,7 +3,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import sklearn.metrics as met
 from scipy.special import expit
-
+from PIL import Image
 
 def one_hot_encode(y, num_classes=10):
     one_hot = np.zeros((y.shape[0], num_classes))
@@ -44,11 +44,27 @@ def loss_derivative(y, y_hat):
     return y_hat - y
 
 
+def confusion_matrix(y_true, y_pred):
+    if y_true.ndim == 2: # Kung 2d
+        y_true = np.argmax(y_true, axis=1)
+
+    if y_pred.ndim == 2:
+        y_pred = np.argmax(y_pred, axis=1)
+
+    num_classes = 10
+    matrix = np.zeros((num_classes, num_classes), dtype=int)
+
+    for true_label, pred_label in zip(y_true, y_pred):
+        matrix[true_label, pred_label] += 1
+
+    return matrix
+
+
 class NeuralNetwork:
     def __init__(self):
 
         self.train_data = pd.read_csv('./Train.csv')
-        self.X = self.train_data.iloc[:, 1:].values # All item in row, from 2nd index to last
+        self.X = self.train_data.iloc[:, 1:].values / 255 # All item in row, from 2nd index to last
         # Y true
         self.y = self.train_data.iloc[:, 0].values # All item in row, first index only
         # One-Hot encode the labels
@@ -65,62 +81,47 @@ class NeuralNetwork:
         self.y_train = self.y_train[shuffle_idx]
         # Initialize weights and biases
         # Self preference kung anong size piliin sa hidden layer
-        self.W1 = np.random.randn(784, 256) * np.sqrt(1.0 / 784)
-        self.B1 = np.zeros((1, 256))
+        self.__W1 = np.random.randn(784, 256) * np.sqrt(1.0 / 784)
+        self.__B1 = np.zeros((1, 256))
 
-        self.W2 = np.random.randn(256, 128) * np.sqrt(1.0 / 256)
-        self.B2 = np.zeros((1, 128))
+        self.__W2 = np.random.randn(256, 128) * np.sqrt(1.0 / 256)
+        self.__B2 = np.zeros((1, 128))
 
-        self.W3 = np.random.randn(128, 10) * np.sqrt(1.0 / 128)
-        self.B3 = np.zeros((1, 10))
+        self.__W3 = np.random.randn(128, 10) * np.sqrt(1.0 / 128)
+        self.__B3 = np.zeros((1, 10))
 
-        self.Z1 = None
-        self.Z2 = None
-        self.Z3 = None
+        self.__Z1 = None
+        self.__Z2 = None
+        self.__Z3 = None
 
-        self.H1 = None
-        self.H2 = None
-        self.H3 = None
-
-    def confusion_matrix(self, y_true, y_pred):
-        if y_true.ndim == 2: # Kung 2d
-            y_true = np.argmax(y_true, axis=1)
-
-        if y_pred.ndim == 2:
-            y_pred = np.argmax(y_pred, axis=1)
-
-        num_classes = 10
-        matrix = np.zeros((num_classes, num_classes), dtype=int)
-
-        for true_label, pred_label in zip(y_true, y_pred):
-            matrix[true_label, pred_label] += 1
-
-        return matrix
+        self.__H1 = None
+        self.__H2 = None
+        self.__H3 = None
 
     def update_params(self, gradients, eta):
         w3, b3, w2, b2, w1, b1 = gradients
-        self.W3 -= w3 * eta
-        self.B3 -= b3 * eta
-        self.W2 -= w2 * eta
-        self.B2 -= b2 * eta
-        self.W1 -= w1 * eta
-        self.B1 -= b1 * eta
+        self.__W3 -= w3 * eta
+        self.__B3 -= b3 * eta
+        self.__W2 -= w2 * eta
+        self.__B2 -= b2 * eta
+        self.__W1 -= w1 * eta
+        self.__B1 -= b1 * eta
 
     def forward_pass(self, X):
         # X_train @ W1 + B1
-        self.Z1 = X @ self.W1 + self.B1
+        self.__Z1 = X @ self.__W1 + self.__B1
         # Applying sigmoid na muna kasi maya nayang ReLu HAHAHAHA sigmoid lang napagaralan ko eh
-        self.H1 = sigmoid(self.Z1)
+        self.__H1 = sigmoid(self.__Z1)
         # H1 @ W2 + B2
-        self.Z2 = self.H1 @ self.W2 + self.B2
+        self.__Z2 = self.__H1 @ self.__W2 + self.__B2
         #  Apply sigmoid ulit
-        self.H2 = sigmoid(self.Z2)
+        self.__H2 = sigmoid(self.__Z2)
         # H2 @ W3 + B3
-        self.Z3 = self.H2 @ self.W3 + self.B3
+        self.__Z3 = self.__H2 @ self.__W3 + self.__B3
         # Y pred
-        self.H3 = softmax(self.Z3)
+        self.__H3 = softmax(self.__Z3)
 
-        return self.H3
+        return self.__H3
 
     """ First of all, PUTANGINANG CHAIN RULE """
 
@@ -129,7 +130,7 @@ class NeuralNetwork:
         dL_dZ3 = softmax_deriv_with_loss(y_pred, y)
         """ dL_dZ3 * dZ3_dW3 - small change in W3 affects the loss
          dZ3_dW3 = H2 * W3 = H2 """
-        dL_dW3 = self.H2.T @ dL_dZ3 / X_batch.shape[0]
+        dL_dW3 = self.__H2.T @ dL_dZ3 / X_batch.shape[0]
         dL_db3 = np.sum(dL_dZ3, axis=0, keepdims=True) / X_batch.shape[0]
         """
         find deriv at the hidden neuron H2:
@@ -139,20 +140,20 @@ class NeuralNetwork:
 
         dH2_dZ2 = sigmoid_deriv
         """
-        dL_dZ2 = (dL_dZ3 @ self.W3.T) * sigmoid_derivative(self.H2)
+        dL_dZ2 = (dL_dZ3 @ self.__W3.T) * sigmoid_derivative(self.__H2)
         """
         Z2 = W2 * H1, so dZ2_dW2 = H1
 
         dL_dW2 = dL_dZ2 * dZ2_dW2
         """
-        dL_dW2 = self.H1.T @ dL_dZ2 / X_batch.shape[0]
+        dL_dW2 = self.__H1.T @ dL_dZ2 / X_batch.shape[0]
         dL_db2 = np.sum(dL_dZ2, axis=0, keepdims=True) / X_batch.shape[0]
         """
         to find dL_dZ1 = dH1_dZ1 * dZ2_dH1 * dL_dZ2
 
         Z2 = H1 * W2, dZ2_dH1 = W2
         """
-        dL_dZ1 = (dL_dZ2 @ self.W2.T) * sigmoid_derivative(self.H1)
+        dL_dZ1 = (dL_dZ2 @ self.__W2.T) * sigmoid_derivative(self.__H1)
         """
         Z1 = X_train * W1, so dZ1_dW1 = X_train
         dL_dW1 = dL_dZ1 * dZ1_dW1
@@ -187,10 +188,11 @@ class NeuralNetwork:
 
         return predictions
 
+    def show_pred(self):
+        pass
+
     def train(self, epochs=500, batch_size=128, eta=0.1):
         # TODO: Train by batch
-        y_hats = list()
-        y_hat = None
         n_samples = self.X_train.shape[0] # row
         n_batches = n_samples // batch_size # row size // 128
 
@@ -220,20 +222,24 @@ class NeuralNetwork:
 
             train_acc = self.evaluate(self.X_train, self.y_train)
             losses_mean = losses / n_batches
-            y_hats.append(y_hat)
-            print(f"Epoch {e + 1}/{epochs} - "
-                  f"Loss: {losses_mean:.4f} - "
-                  f"Train Acc: {train_acc:.4f} - "
-                  )
+
+            print(
+                f"Epoch {e + 1}/{epochs} - "
+                f"Loss: {losses_mean:.4f} - "
+                f"Train Acc: {train_acc:.4f} - "
+                )
             # Kasi antagal magtrain tngina
             if train_acc >= .96:
                 break
 
-        cm = self.confusion_matrix(self.y_train, y_hat)
-        print(f"\nConfusion Matrix:\n{cm}")
-
-        pred = self.predict(self.X_test[9])
-        print(f"Predicted {pred}, actual {self.y_test[9]}")
+        # cm = self.confusion_matrix(self.y_train, y_hats)
+        # print(f"\nConfusion Matrix:\n{cm}")
+        plt.imshow(self.X_test[4].reshape(28, 28), cmap='gray')
+        plt.axis('off')
+        plt.title(f"{self.y_test[4]}")
+        plt.show()
+        pred = self.predict(self.X_test[4])
+        print(f"Predicted {pred}")
 
 if __name__ == '__main__':
     nn = NeuralNetwork()
